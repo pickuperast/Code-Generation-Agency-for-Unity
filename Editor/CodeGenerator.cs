@@ -25,6 +25,7 @@ namespace Sanat.CodeGenerator
         private CodeGeneratorUIRenderer _uiRenderer;
         private CodeGeneratorPreparationHelper _preparationHelper;
         private RagProcessor _ragProcessor;
+        public bool IsFirstOnEnableCall => _isFirstOnEnableCall;
         private static bool _isFirstOnEnableCall = true;
         
         // UI State
@@ -50,7 +51,7 @@ namespace Sanat.CodeGenerator
         public float generationProgress;
         private float lastProgressUpdateTime;
         private float targetProgress;
-        private float progressSpeed = .001f;
+        private float progressSpeed = .000001f;
         private const int MAX_ALLOWED_VALIDITY_CHECKINGS = 3;
         private int _currentRun;
 
@@ -96,15 +97,16 @@ namespace Sanat.CodeGenerator
         {
             InitializeManagers();
             
-            if (_isFirstOnEnableCall)
-            {
-                await LoadSettingsDelayedAsync();
-                _isFirstOnEnableCall = false;
-            }
-            else
-            {
-                await _settingsManager.LoadSettings(this);
-            }
+            await LoadSettingsDelayedAsync();
+            // if (_isFirstOnEnableCall)
+            // { <== causes editor crash
+            //     await LoadSettingsDelayedAsync();
+            //     _isFirstOnEnableCall = false;
+            // }
+            // else
+            // {
+            //     await _settingsManager.LoadSettings(this);
+            // }
         }
 
         private async UniTask LoadSettingsDelayedAsync()
@@ -222,11 +224,14 @@ namespace Sanat.CodeGenerator
             string includedCode)
         {
             UpdateProgress(0.1f);
+            RemoveExistingEventHandlers(agentCodeArchitector, agentCodeMerger, agentCodeHighLevelArchitector);
+
             agentCodeHighLevelArchitector.OnTextAnswerProvided += (string techSpec) =>
             {
                 if (!isGeneratingCode) return;
                 UpdateProgress(0.3f);
                 agentCodeArchitector.ChangeTask(techSpec);
+                agentCodeArchitector.OnFileContentProvided = null;
                 agentCodeArchitector.OnFileContentProvided += (List<AbstractAgentHandler.FileContent> fileContents) =>
                 {
                     if (!isGeneratingCode) return;
@@ -277,6 +282,17 @@ namespace Sanat.CodeGenerator
                 Debug.LogError("Code merger failed to process solution");
                 FinishGenerationActions();
              };
+        }
+
+        private static void RemoveExistingEventHandlers(AgentCodeArchitector agentCodeArchitector,
+            AgentCodeMerger agentCodeMerger, AgentCodeHighLevelArchitector agentCodeHighLevelArchitector)
+        {
+            agentCodeHighLevelArchitector.OnTextAnswerProvided = null;
+            agentCodeArchitector.OnFileContentProvided = null;
+            agentCodeArchitector.OnComplete = null;
+            agentCodeMerger.OnComplete = null;
+            agentCodeArchitector.OnUnsuccessfull = null;
+            agentCodeMerger.OnUnsuccessfull = null;
         }
 
         private AbstractAgentHandler NextStepsAfterArchitector(string validationResult,
@@ -351,7 +367,7 @@ namespace Sanat.CodeGenerator
             includedCodeRaw = GenerateIncludedCode(includedCodeRaw, ref includedCode);
             includedCode = Regex.Replace(includedCode, @"\s+", " ").Trim();
             string clearedCodeScriptForLLM = includedCodeRaw;
-            string promptLocation = Application.dataPath + $"{AbstractAgentHandler.PROMPTS_FOLDER_PATH}Unity code architector.md";
+            string promptLocation = Application.dataPath + $"{AbstractAgentHandler.PROMPTS_FOLDER_PATH}AgentCodeHighLevelArchitector.md";
             string loadedPrompt = AbstractAgentHandler.LoadPrompt(promptLocation);
             string newPrompt = CodeGeneratorExtensions.RemoveLastNRows(loadedPrompt, rowsToRemove);
             string prompt = newPrompt + $"\n# CODE: {clearedCodeScriptForLLM}\n\n# TASK: {taskInput}";

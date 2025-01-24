@@ -67,6 +67,8 @@ namespace Sanat.CodeGenerator.Agents
         public async Task SplitTaskToSingleFiles()
         {
             await Task.Delay(100);
+            SelectedApiProvider = ApiProviders.OpenAI;
+            _modelName = ApiOpenAI.Model.GPT4omini.Name;
             Debug.Log($"{DebugName} asking [{SelectedApiProvider}][{_modelName}]: {_task}");
             var fileTasks = new List<FileTasks>();
             BotParameters botParameters = new BotParameters(_task, SelectedApiProvider, Temperature, null, _modelName, true);
@@ -74,7 +76,7 @@ namespace Sanat.CodeGenerator.Agents
             switch (botParameters.apiProvider)
             {
                 case ApiProviders.OpenAI:
-                    //ToolSplitTaskToSingleFilesOpenAI(botParameters, systemPrompt);
+                    ToolSplitTaskToSingleFilesOpenAI(botParameters, systemPrompt);
                     break;
                 case ApiProviders.Gemini:
                     ToolSplitTaskToSingleFilesGemini(botParameters, systemPrompt);
@@ -84,6 +86,38 @@ namespace Sanat.CodeGenerator.Agents
                     break;
             }
             AskBot(botParameters);
+        }
+        
+        private void ToolSplitTaskToSingleFilesOpenAI(BotParameters botParameters, string systemPrompt)
+        {
+            var openaiTools = new ApiOpenAI.Tool[] { new("function", _functionDefinitions.GetFunctionData_OpenaiSplitTaskToSingleFiles()) }; // Use the new class
+            botParameters.isToolUse = true;
+            botParameters.openaiTools = openaiTools;
+            botParameters.systemMessage = systemPrompt;
+            botParameters.onOpenaiChatResponseComplete += (response) =>
+            {
+                Debug.Log($"{DebugName} {AgentFunctionDefinitions.TOOL_NAME_SPLIT_TASK_TO_SINGLE_FILES} Result: {response}");
+                if (response.choices[0].finish_reason == "tool_calls")
+                {
+                    ToolCalls[] toolCalls = response.choices[0].message.tool_calls;
+                    int filesAmount = toolCalls.Length;
+                    List<FileTasks> fileTasks = new List<FileTasks>();
+                    string logFileNames = $"<color=green>{Name}</color>: ";
+
+                    for (int i = 0; i < filesAmount; i++)
+                    {
+                        SaveResultToFile(toolCalls[i].function.arguments);
+                        fileTasks.Add(JsonConvert.DeserializeObject<FileTasks>(toolCalls[i].function.arguments));
+                        logFileNames += $"{fileTasks[i].FilePath}, ";
+                        if (i == filesAmount - 1)
+                        {
+                            logFileNames = logFileNames.Remove(logFileNames.Length - 2);
+                        }
+                    }
+                    Debug.Log(logFileNames);
+                    ReportFunctionResult_SplitTaskToSingleFiles(fileTasks);
+                }
+            };
         }
 
         private void ToolSplitTaskToSingleFilesGemini(BotParameters botParameters, string systemPrompt)
@@ -124,8 +158,8 @@ namespace Sanat.CodeGenerator.Agents
                 Debug.Log($"{DebugName} fileTasks: {fileTasks.Count}");
                 string techSpec = _task;
                 OnFileTasksProvided?.Invoke(fileTasks);
-                SelectedApiProvider = ApiProviders.OpenAI;
-                _modelName = ApiOpenAI.Model.GPT4omini.Name;
+                // SelectedApiProvider = ApiProviders.OpenAI;
+                // _modelName = ApiOpenAI.Model.GPT4omini.Name;
                 SelectedApiProvider = ApiProviders.Gemini;
                 _modelName = Model.Flash2.Name;
                 for (int i = 0; i < fileTasks.Count; i++)

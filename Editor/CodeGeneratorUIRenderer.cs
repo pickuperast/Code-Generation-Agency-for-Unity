@@ -18,6 +18,7 @@ public class CodeGeneratorUIRenderer
 
     public void RenderMainUI(CodeGenerator codeGenerator)
     {
+        if (!codeGenerator.IsSettingsLoaded) return;
         GUILayout.Space(10);
         EditorGUILayout.LabelField("Task Description", EditorStyles.boldLabel);
         GUIStyle textAreaStyle = new GUIStyle(EditorStyles.textArea);
@@ -82,11 +83,14 @@ public class CodeGeneratorUIRenderer
 
         EditorGUILayout.Space();
         RenderGenerationButtons(codeGenerator);
-
-        if (codeGenerator.IsSettingsLoaded)
+        
+        if (codeGenerator != null && codeGenerator.IsSettingsLoaded && codeGenerator.bookmarkManager != null)
             codeGenerator.bookmarkManager.DrawBookmarksUI(codeGenerator);
 
-        RenderGeneratedPrompt(codeGenerator);
+        if (!codeGenerator.IsFirstOnEnableCall)
+        {
+            RenderGeneratedPrompt(codeGenerator);
+        }
         EditorGUILayout.Space();
 
         if (codeGenerator.isButtonAnimating)
