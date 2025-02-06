@@ -54,8 +54,12 @@ namespace Sanat.ApiGemini
 
                 if (!success)
                 {
-                    Debug.Log($"{webRequest.error} --- {webRequest.downloadHandler.text}");
+                    Debug.Log($"webRequest.error: {webRequest.error} \nwebRequest.downloadHandler.text: {webRequest.downloadHandler.text}");
                     Debug.Log($"{model} Retry #{retryCount + 1} due to: {(text.Contains("MAX_TOKENS") ? "MAX_TOKENS" : "print(default_api")}");
+                    if (webRequest.downloadHandler.text.Contains("RESOURCE_EXHAUSTED"))
+                    {
+                        model = "gemini-1.5-flash-latest";
+                    }
                     webRequest.Dispose();
                     SendRequestRecursively(apiKey, model, jsonData, chatRequest, callback, retryCount + 1, maxRetries);
                     return;
@@ -65,7 +69,11 @@ namespace Sanat.ApiGemini
                 {
                     Debug.Log($"{model} Retry #{retryCount + 1} due to: {(text.Contains("MAX_TOKENS") ? "MAX_TOKENS" : "print(default_api")}");
                     webRequest.Dispose();
-                    
+                    if (retryCount > 1)
+                    {
+                        Debug.Log($"Retry #{retryCount + 1} due to: retryCount > 1");
+                        model = "gemini-1.5-flash-latest";
+                    }
                     SendRequestRecursively(apiKey, model, jsonData, chatRequest, callback, retryCount + 1, maxRetries);
                     return;
                 }
