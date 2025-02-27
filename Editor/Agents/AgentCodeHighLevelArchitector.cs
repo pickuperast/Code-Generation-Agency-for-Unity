@@ -64,7 +64,7 @@ namespace Sanat.CodeGenerator.Agents
             SelectedApiProvider = ApiProviders.Gemini;
             _modelName = ApiGemini.Model.Flash2.Name;
             SelectedApiProvider = ApiProviders.Anthropic;
-            _modelName = ApiAnthropic.Model.Claude35Latest.Name;
+            _modelName = ApiAnthropic.Model.Claude37.Name;
         }
 
         public override void Handle(string input)

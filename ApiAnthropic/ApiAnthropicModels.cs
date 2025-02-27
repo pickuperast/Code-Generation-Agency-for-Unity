@@ -26,6 +26,8 @@ namespace Sanat.ApiAnthropic
         {
             switch (modelName)
             {
+                case "claude-3-7-sonnet-20250219":
+                    return Claude37;
                 case "claude-3-5-sonnet-20240620":
                     return Claude35;
                 case "claude-3-5-sonnet-20241022":
@@ -41,6 +43,8 @@ namespace Sanat.ApiAnthropic
         {
             switch (modelName)
             {
+                case "claude-3-7-sonnet-20250219":
+                    return "claude-3-5-sonnet-20240620";
                 case "claude-3-5-sonnet-20241022":
                     return "claude-3-5-sonnet-20240620";
                 case "claude-3-5-sonnet-20240620":
@@ -49,6 +53,8 @@ namespace Sanat.ApiAnthropic
                     return "";
             }
         }
+        
+        public static Model Claude37 { get; } = new Model("claude-3-7-sonnet-20250219", ModelType.Chat, 200000, 3f, 15f, 8192);
        
         public static Model Claude35 { get; } = new Model("claude-3-5-sonnet-20240620", ModelType.Chat, 200000, 3f, 15f, 8192);
         

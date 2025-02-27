@@ -78,8 +78,15 @@ namespace Sanat.CodeGenerator.Agents
         {
             string promptLocation = Application.dataPath + $"{PROMPTS_FOLDER_PATH}{PROMPT_VALIDATE_SOLUTION_USING_TOOL}";
             string agentLogName = $"<color=yellow>{Name}</color>";
+            bool isSkipValidation = true;
             foreach (var file in fileContents)
             {
+                if (isSkipValidation)
+                {
+                    _agentCodeMerger.MergeFiles(new List<FileContent> { file });
+                    continue;
+                }
+                
                 string filePath = file.FilePath;
                 string className = file.FilePath.Split("/").Last();
                 bool fileExists = _agentCodeMerger.CheckIfFileExists(className);
