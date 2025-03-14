@@ -1,84 +1,108 @@
-﻿using System;
+﻿// Assets/Sanat/CodeGenerator/Editor/Bookmarks/CodeGeneratorBookmarks.cs
+using System;
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditorInternal;
 
-namespace Sanat.CodeGenerator.Bookmarks
+namespace Sanat.CodeGenerator.Editor.Bookmarks
 {
     public class CodeGeneratorBookmarks
     {
-        private List<Bookmark> bookmarks = new List<Bookmark>();
+        private BookmarkDatabase database;
         private string newBookmarkName = "";
         private string bookmarkSearchQuery = "";
         private Vector2 bookmarkScrollPosition;
         private bool showBookmarks = false;
         private ReorderableList bookmarkList;
         private Texture2D bookmarkIcon;
-        CodeGenerator codeGenerator;
+        private CodeGenerator codeGenerator;
         private string _className;
+        
         public string ClassName {
             get {
                 if (string.IsNullOrEmpty(_className)) _className = $"<color=#56dd12>CodeGeneratorBookmarks</color>";
                 return _className;
             }
         }
-
+        
         public event Action OnBookmarkSaved;
-        public event System.Action<Bookmark> OnBookmarkLoaded;
-
-        public List<Bookmark> GetBookmarks()
+        public event System.Action<BookmarkData> OnBookmarkLoaded;
+        
+        public CodeGeneratorBookmarks()
         {
-            return new List<Bookmark>(bookmarks);
+            InitializeDatabase();
         }
-
+        
+        private void InitializeDatabase()
+        {
+            database = BookmarkDatabase.GetOrCreateDatabase();
+            if (database == null)
+            {
+                Debug.LogError($"{ClassName} Failed to initialize bookmark database!");
+            }
+        }
+        
+        public List<BookmarkData> GetBookmarks()
+        {
+            if (database == null) InitializeDatabase();
+            return database.bookmarks;
+        }
+        
         public void DrawBookmarksUI(CodeGenerator codeGeneratorEditorWindow)
         {
             codeGenerator = codeGeneratorEditorWindow;
             if (!codeGenerator.IsSettingsLoaded)
                 return;
-
+                
+            if (database == null) InitializeDatabase();
+                
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            showBookmarks = EditorGUILayout.Foldout(showBookmarks, "Bookmarks", true);
+            showBookmarks = EditorGUILayout.Foldout(showBookmarks, "Project Bookmarks", true);
             if (showBookmarks)
             {
                 EditorGUILayout.Space();
                 DrawBookmarkCreation();
                 DrawBookmarkSearch();
                 DrawBookmarkList();
+                
+                // Migration button for legacy bookmarks
+                if (GUILayout.Button("Migrate Legacy Bookmarks"))
+                {
+                    MigrateLegacyBookmarks();
+                }
             }
             EditorGUILayout.EndVertical();
         }
-
+        
         private void DrawBookmarkCreation()
         {
             EditorGUILayout.BeginHorizontal();
             newBookmarkName = EditorGUILayout.TextField("New Bookmark Name", newBookmarkName);
             string[] categories = { "General", "UI", "Gameplay", "Audio" };
             int selectedCategory = EditorGUILayout.Popup("Category", 0, categories);
-
             if (GUILayout.Button("Save Bookmark", GUILayout.Width(120)))
             {
-                SaveBookmark(new Bookmark(newBookmarkName, codeGenerator.selectedClassNames, selectedCategory, ""));
+                SaveBookmark(newBookmarkName, codeGenerator.selectedClassNames, selectedCategory, codeGenerator.taskInput);
                 newBookmarkName = "";
             }
             EditorGUILayout.EndHorizontal();
         }
-
+        
         private void DrawBookmarkSearch()
         {
             bookmarkSearchQuery = EditorGUILayout.TextField("Search Bookmarks", bookmarkSearchQuery);
         }
-
+        
         private void DrawBookmarkList()
         {
-            if (bookmarks == null || bookmarks.Count == 0)
+            if (database == null || database.bookmarks == null || database.bookmarks.Count == 0)
             {
-                EditorGUILayout.LabelField("No bookmarks saved.");
+                EditorGUILayout.LabelField("No bookmarks saved in this project.");
                 return;
             }
-
+            
             bookmarkScrollPosition = EditorGUILayout.BeginScrollView(bookmarkScrollPosition, GUILayout.Height(200));
             if (bookmarkList != null)
             {
@@ -94,196 +118,186 @@ namespace Sanat.CodeGenerator.Bookmarks
             }
             EditorGUILayout.EndScrollView();
         }
-
+        
         public void InitializeReorderableList()
         {
-            if (bookmarks == null)
-            {
-                bookmarks = new List<Bookmark>();
-            }
-
-            if (bookmarks.Count == 0)
-            {
-                LoadBookmarksFromPrefs();
-            }
-
-            bookmarkList = new ReorderableList(bookmarks, typeof(Bookmark), true, true, false, false);
-            bookmarkList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Bookmarks");
+            if (database == null) InitializeDatabase();
+            
+            bookmarkList = new ReorderableList(database.bookmarks, typeof(BookmarkData), true, true, false, false);
+            bookmarkList.drawHeaderCallback = (Rect rect) => EditorGUI.LabelField(rect, "Project Bookmarks");
             bookmarkList.drawElementCallback = DrawBookmarkElement;
-            bookmarkList.onReorderCallback = (ReorderableList list) => SaveBookmarksToPrefs();
+            bookmarkList.onReorderCallback = (ReorderableList list) => {
+                EditorUtility.SetDirty(database);
+                AssetDatabase.SaveAssets();
+            };
         }
-
+        
         private void DrawBookmarkElement(Rect rect, int index, bool isActive, bool isFocused)
         {
-            if (index < 0 || index >= bookmarks.Count)
+            if (index < 0 || index >= database.bookmarks.Count)
             {
-                Debug.LogWarning($"Invalid bookmark index: {index}. Total bookmarks: {bookmarks.Count}");
+                Debug.LogWarning($"Invalid bookmark index: {index}. Total bookmarks: {database.bookmarks.Count}");
                 return;
             }
-
-            var bookmark = bookmarks[index];
+            
+            var bookmark = database.bookmarks[index];
             if (bookmark == null)
             {
                 Debug.LogWarning($"Null bookmark at index {index}");
                 return;
             }
-
+            
             if (!string.IsNullOrEmpty(bookmarkSearchQuery) &&
-                !bookmark.Name.ToLower().Contains(bookmarkSearchQuery.ToLower()))
+                !bookmark.bookmarkName.ToLower().Contains(bookmarkSearchQuery.ToLower()))
             {
                 return;
             }
-
+            
             float iconWidth = 20;
             float buttonWidth = 60;
             float spacing = 5;
-            string tooltipSeparator = bookmark.SelectedClassNames.Count > 10 ? ", " : "\n";
-            string tooltip = $"[{bookmark.SelectedClassNames.Count}]: ";
-            tooltip += string.Join(tooltipSeparator, bookmark.SelectedClassNames);
+            
+            string tooltipSeparator = bookmark.selectedClassNames.Count > 10 ? ", " : "\n";
+            string tooltip = $"[{bookmark.selectedClassNames.Count}]: ";
+            tooltip += string.Join(tooltipSeparator, bookmark.selectedClassNames);
+            
             EditorGUI.LabelField(
                 new Rect(rect.x + iconWidth + spacing, rect.y, rect.width - iconWidth - buttonWidth * 3 - spacing * 4, rect.height),
-                new GUIContent(bookmark.Name, tooltip)
+                new GUIContent(bookmark.bookmarkName, tooltip)
             );
-
+            
             if (GUI.Button(new Rect(rect.xMax - buttonWidth * 3 - spacing * 2, rect.y, buttonWidth, rect.height), "Add"))
             {
                 AddBookmark(bookmark);
             }
-
+            
             if (GUI.Button(new Rect(rect.xMax - buttonWidth * 2 - spacing, rect.y, buttonWidth, rect.height), "Load"))
             {
                 LoadBookmark(bookmark);
             }
-
+            
             if (GUI.Button(new Rect(rect.xMax - buttonWidth, rect.y, buttonWidth, rect.height), "Delete"))
             {
                 if (EditorUtility.DisplayDialog("Confirm Deletion",
-                    $"Are you sure you want to delete the bookmark '{bookmark.Name}'?", "Yes", "No"))
+                    $"Are you sure you want to delete the bookmark '{bookmark.bookmarkName}'?", "Yes", "No"))
                 {
                     DeleteBookmark(bookmark);
                     InitializeReorderableList(); // Reinitialize the list after deletion
                 }
             }
         }
-
-        public void SaveBookmark(Bookmark bookmark)
+        
+        public void SaveBookmark(string name, List<string> selectedClassNames, int category, string task)
         {
-            if (string.IsNullOrEmpty(bookmark.Name))
+            if (string.IsNullOrEmpty(name))
             {
                 Debug.LogWarning("Bookmark name cannot be empty.");
                 return;
             }
-
-            bookmark.Task = codeGenerator.taskInput;
-
-            bookmarks.Add(bookmark);
-            SaveBookmarksToPrefs();
-
-            Debug.Log($"{ClassName} New bookmark saved: {bookmark.Name}. "+
-                      $"Selected Classes ({bookmark.SelectedClassNames.Count}): "+
-                      $"{string.Join(", ", bookmark.SelectedClassNames)}; "+
-                      $"Task: {bookmark.Task}; Category: {bookmark.Category}");
-
+            
+            var bookmark = database.AddBookmark(name, selectedClassNames, category, task);
+            
+            Debug.Log($"{ClassName} New bookmark saved: {bookmark.bookmarkName}. "+
+                      $"Selected Classes ({bookmark.selectedClassNames.Count}): "+
+                      $"{string.Join(", ", bookmark.selectedClassNames)}; "+
+                      $"Task: {bookmark.task}; Category: {bookmark.category}");
+                      
             OnBookmarkSaved?.Invoke();
-
             InitializeReorderableList();
-
+            
             if (codeGenerator != null)
             {
                 codeGenerator.Repaint();
             }
         }
-
-        public void LoadBookmark(Bookmark bookmark)
+        
+        public void LoadBookmark(BookmarkData bookmark)
         {
             if (bookmark != null)
             {
-                foreach (var bkm in bookmarks)
-                {
-                    if (bkm.Name == bookmark.Name)
-                    {
-                        OnBookmarkLoaded?.Invoke(bkm);
-                        break;
-                    }
-                }
+                OnBookmarkLoaded?.Invoke(bookmark);
             }
         }
-
-        public void AddBookmark(Bookmark bookmark)
+        
+        public void AddBookmark(BookmarkData bookmark)
         {
             if (bookmark != null)
             {
-                foreach (var bkm in bookmarks)
-                {
-                    if (bkm.Name == bookmark.Name)
-                    {
-                        var selectedClasses = codeGenerator.selectedClassNames;
-                        var oldAmount = selectedClasses.Count;
-                        var oldClasses = selectedClasses;
-                        selectedClasses.AddRange(bkm.SelectedClassNames);
-                        codeGenerator.selectedClassNames = new List<string>(selectedClasses.Distinct());
-                        selectedClasses = codeGenerator.selectedClassNames;
-                        var newAmount = selectedClasses.Count;
-                        var addedClasses = selectedClasses.Except(oldClasses).ToList();
-                        Debug.Log($"{ClassName} Added {newAmount-oldAmount} classes to selection: {string.Join(", ", addedClasses)}");
-                        break;
-                    }
-                }
+                var selectedClasses = codeGenerator.selectedClassNames;
+                var oldAmount = selectedClasses.Count;
+                var oldClasses = selectedClasses;
+                selectedClasses.AddRange(bookmark.selectedClassNames);
+                codeGenerator.selectedClassNames = new List<string>(selectedClasses.Distinct());
+                selectedClasses = codeGenerator.selectedClassNames;
+                var newAmount = selectedClasses.Count;
+                var addedClasses = selectedClasses.Except(oldClasses).ToList();
+                Debug.Log($"{ClassName} Added {newAmount-oldAmount} classes to selection: {string.Join(", ", addedClasses)}");
             }
         }
-
-        public void DeleteBookmark(Bookmark bookmark)
+        
+        public void DeleteBookmark(BookmarkData bookmark)
         {
-            bookmarks.Remove(bookmark);
-            SaveBookmarksToPrefs();
+            database.DeleteBookmark(bookmark);
         }
-
-        public void SaveBookmarksToPrefs()
-        {
-            string json = JsonUtility.ToJson(new SerializableBookmarkList { bookmarks = bookmarks });
-            EditorPrefs.SetString("CodeGeneratorBookmarks", json);
-        }
-
-        public List<Bookmark> LoadBookmarksFromPrefs()
+        
+        // Migration functionality
+        private void MigrateLegacyBookmarks()
         {
             string json = EditorPrefs.GetString("CodeGeneratorBookmarks", "");
-            if (!string.IsNullOrEmpty(json))
+            if (string.IsNullOrEmpty(json))
             {
-                SerializableBookmarkList loadedBookmarks = JsonUtility.FromJson<SerializableBookmarkList>(json);
-                bookmarks = loadedBookmarks.bookmarks;
-                return bookmarks;
+                EditorUtility.DisplayDialog("Migration", "No legacy bookmarks found to migrate.", "OK");
+                return;
             }
-            return new List<Bookmark>();
-        }
-
-        public void ExportBookmarks()
-        {
-            string json = JsonUtility.ToJson(new SerializableBookmarkList { bookmarks = bookmarks });
-            string path = EditorUtility.SaveFilePanel("Export Bookmarks", "", "bookmarks.json", "json");
-            if (!string.IsNullOrEmpty(path))
+            
+            try
             {
-                System.IO.File.WriteAllText(path, json);
+                SerializableBookmarkList legacyBookmarks = JsonUtility.FromJson<SerializableBookmarkList>(json);
+                int migratedCount = 0;
+                
+                foreach (var legacyBookmark in legacyBookmarks.bookmarks)
+                {
+                    // Check if bookmark with same name already exists
+                    if (database.FindBookmarkByName(legacyBookmark.Name) == null)
+                    {
+                        database.AddBookmark(
+                            legacyBookmark.Name,
+                            legacyBookmark.SelectedClassNames,
+                            legacyBookmark.Category,
+                            legacyBookmark.Task
+                        );
+                        migratedCount++;
+                    }
+                }
+                
+                EditorUtility.DisplayDialog("Migration Complete", 
+                    $"Successfully migrated {migratedCount} bookmarks to project-specific storage.", "OK");
+                
+                // Clear the EditorPrefs after successful migration
+                if (migratedCount > 0 && 
+                    EditorUtility.DisplayDialog("Clear Legacy Bookmarks", 
+                        "Would you like to clear the legacy bookmarks from EditorPrefs?", "Yes", "No"))
+                {
+                    EditorPrefs.DeleteKey("CodeGeneratorBookmarks");
+                }
+                
+                InitializeReorderableList();
             }
-        }
-
-        public void ImportBookmarks()
-        {
-            string path = EditorUtility.OpenFilePanel("Import Bookmarks", "", "json");
-            if (!string.IsNullOrEmpty(path))
+            catch (Exception e)
             {
-                string json = System.IO.File.ReadAllText(path);
-                SerializableBookmarkList importedBookmarks = JsonUtility.FromJson<SerializableBookmarkList>(json);
-                bookmarks.AddRange(importedBookmarks.bookmarks);
-                SaveBookmarksToPrefs();
+                Debug.LogError($"Failed to migrate legacy bookmarks: {e.Message}");
+                EditorUtility.DisplayDialog("Migration Failed", 
+                    $"Failed to migrate legacy bookmarks: {e.Message}", "OK");
             }
         }
-
+        
+        // For backward compatibility with legacy system
         [System.Serializable]
         private class SerializableBookmarkList
         {
             public List<Bookmark> bookmarks;
         }
-
+        
         [System.Serializable]
         public class Bookmark
         {
@@ -291,14 +305,6 @@ namespace Sanat.CodeGenerator.Bookmarks
             public List<string> SelectedClassNames;
             public string Task;
             public int Category;
-
-            public Bookmark(string name, List<string> selectedClassNames, int category, string task)
-            {
-                this.Name = name;
-                this.SelectedClassNames = selectedClassNames;
-                this.Task = task;
-                this.Category = category;
-            }
         }
     }
 }

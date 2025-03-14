@@ -1,4 +1,5 @@
-﻿using UnityEngine.Serialization;
+using System.Collections.Generic;
+using UnityEngine.Serialization;
 
 namespace Sanat.CodeGenerator.Agents
 {
@@ -8,5 +9,6 @@ namespace Sanat.CodeGenerator.Agents
         public string AgentName;
         public AbstractAgentHandler.ApiProviders ApiProvider;
         public string ModelName;
+        public List<string> SelectedMemoryFiles = new List<string>();
     }
 }

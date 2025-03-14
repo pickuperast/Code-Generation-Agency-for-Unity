@@ -73,4 +73,5 @@ crashlytics-build.properties
 
 /Prompts/*
 /Results/*
+/Bookmarks/*
 /ScriptBackups/*

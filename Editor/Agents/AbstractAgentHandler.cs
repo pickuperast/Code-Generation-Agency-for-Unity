@@ -34,8 +34,10 @@ namespace Sanat.CodeGenerator.Agents
         public ApiKeys Apikeys;
         public Action<string> OnComplete;
         public Action OnUnsuccessfull;
+        public const string PROMPTS_SAVE_FOLDER = "Sanat/CodeGenerator/Prompts";
         public const string RESULTS_SAVE_FOLDER = "Sanat/CodeGenerator/Results";
         public const string PROMPTS_FOLDER_PATH = "/Sanat/CodeGenerator/Editor/Agents/Prompts/";
+        public const string MEMORY_FOLDER_PATH = "/Sanat/CodeGenerator/Editor/Agents/Prompts/Memory/";
         public const string KEY_FIGURE_OPEN = "[figureOpen]";
         public const string KEY_FIGURE_CLOSE = "[figureClose]";
         protected List<FileContent> _projectCode = new ();
@@ -53,6 +55,7 @@ namespace Sanat.CodeGenerator.Agents
         protected string _modelName;
         public int ConversationHistoryMemory { get; set; } = 1;
         protected HttpClient httpClient;
+        protected List<string> _selectedMemoryFiles = new List<string>();
 
         public void SaveResultToFile(string result)
         {
@@ -65,6 +68,19 @@ namespace Sanat.CodeGenerator.Agents
             string filePath = Path.Combine(directoryPath, fileName);
             File.WriteAllText(filePath, result);
             Debug.Log($"Result saved to: {filePath}");
+        }
+
+        public static void SavePromptToFile(string promptBody, string agentName = "")
+        {
+            string directoryPath = Path.Combine(Application.dataPath, PROMPTS_SAVE_FOLDER);
+            if (!Directory.Exists(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+            string fileName = $"prompt_{DateTime.Now:yyyy-MM-ddTHH-mm-ss}.txt";
+            string filePath = Path.Combine(directoryPath, fileName);
+            File.WriteAllText(filePath, promptBody);
+            Debug.Log($"{agentName}: Prompt of Length = {promptBody.Length} chars   saved to {filePath}");
         }
         
         public AbstractAgentHandler SetNext(AbstractAgentHandler handler)
@@ -259,6 +275,34 @@ namespace Sanat.CodeGenerator.Agents
         
         public void AskGemini(ChatRequest chatRequest, Action<string> onComplete) {
             Gemini.SubmitChatAsync(Apikeys.gemini, _modelName, chatRequest, onComplete);
+        }
+        
+        protected string LoadMemoryContent()
+        {
+            if (_selectedMemoryFiles == null || _selectedMemoryFiles.Count == 0)
+                return string.Empty;
+            
+            string memoryContent = "\n\n# MEMORY FILES:\n";
+            string memoryFolderPath = Application.dataPath + MEMORY_FOLDER_PATH;
+        
+            foreach (string fileName in _selectedMemoryFiles)
+            {
+                string filePath = Path.Combine(memoryFolderPath, fileName + ".md");
+                if (File.Exists(filePath))
+                {
+                    try
+                    {
+                        string content = File.ReadAllText(filePath);
+                        memoryContent += $"\n## {fileName}:\n{content}\n";
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Error loading memory file {filePath}: {ex.Message}");
+                    }
+                }
+            }
+        
+            return memoryContent;
         }
         
         public static string ClearResult(string input, Brackets bracket = Brackets.square)

@@ -1,4 +1,4 @@
-﻿// Assets/Sanat/CodeGenerator/Editor/CodeGeneratorUIRenderer.cs
+// Assets/Sanat/CodeGenerator/Editor/CodeGeneratorUIRenderer.cs
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,8 +24,10 @@ public class CodeGeneratorUIRenderer
         GUIStyle textAreaStyle = new GUIStyle(EditorStyles.textArea);
         textAreaStyle.wordWrap = true;
         float textAreaHeight = 3 * EditorGUIUtility.singleLineHeight;
-        codeGenerator.taskScrollPosition = EditorGUILayout.BeginScrollView(codeGenerator.taskScrollPosition, GUILayout.Height(textAreaHeight));
-        codeGenerator.taskInput = EditorGUILayout.TextArea(codeGenerator.taskInput, textAreaStyle, GUILayout.ExpandHeight(true));
+        codeGenerator.taskScrollPosition =
+            EditorGUILayout.BeginScrollView(codeGenerator.taskScrollPosition, GUILayout.Height(textAreaHeight));
+        codeGenerator.taskInput =
+            EditorGUILayout.TextArea(codeGenerator.taskInput, textAreaStyle, GUILayout.ExpandHeight(true));
         EditorGUILayout.EndScrollView();
 
         GUILayout.Space(20);
@@ -46,11 +48,14 @@ public class CodeGeneratorUIRenderer
         {
             codeGenerator.isSettingsVisible = !codeGenerator.isSettingsVisible;
         }
-        string agentSettingsButtonLabel = codeGenerator.isAgentSettingsVisible ? "Close Agent Settings" : "Agent Settings";
+
+        string agentSettingsButtonLabel =
+            codeGenerator.isAgentSettingsVisible ? "Close Agent Settings" : "Agent Settings";
         if (GUILayout.Button(agentSettingsButtonLabel))
         {
             codeGenerator.isAgentSettingsVisible = !codeGenerator.isAgentSettingsVisible;
         }
+
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space();
@@ -63,10 +68,12 @@ public class CodeGeneratorUIRenderer
         {
             isSelectedClassesVisible = !isSelectedClassesVisible;
         }
+
         if (GUILayout.Button("Clear Selected Classes"))
         {
             codeGenerator.selectedClassNames.Clear();
         }
+
         EditorGUILayout.EndHorizontal();
 
         if (isSelectedClassesVisible)
@@ -83,7 +90,7 @@ public class CodeGeneratorUIRenderer
 
         EditorGUILayout.Space();
         RenderGenerationButtons(codeGenerator);
-        
+
         if (codeGenerator != null && codeGenerator.IsSettingsLoaded && codeGenerator.bookmarkManager != null)
             codeGenerator.bookmarkManager.DrawBookmarksUI(codeGenerator);
 
@@ -91,13 +98,14 @@ public class CodeGeneratorUIRenderer
         {
             RenderGeneratedPrompt(codeGenerator);
         }
+
         EditorGUILayout.Space();
 
         if (codeGenerator.isButtonAnimating)
         {
             codeGenerator.Repaint();
         }
-        
+
         if (isGenerateCodeButtonDisabled)
         {
             codeGenerator.Repaint();
@@ -120,6 +128,7 @@ public class CodeGeneratorUIRenderer
                 selectedClasses.RemoveAt(i);
                 return;
             }
+
             if (GUILayout.Button(selectedClasses[i], GUILayout.ExpandWidth(true)))
             {
                 if (codeGenerator.classToPath.TryGetValue(selectedClasses[i], out string filePath))
@@ -127,6 +136,7 @@ public class CodeGeneratorUIRenderer
                     CodeGeneratorFileOpener.OpenScript(filePath);
                 }
             }
+
             EditorGUILayout.EndHorizontal();
         }
     }
@@ -139,7 +149,8 @@ public class CodeGeneratorUIRenderer
             string[] suggestions = filteredSuggestions.OrderBy(c => c).ToArray();
             if (suggestions.Length > 0)
             {
-                codeGenerator.scrollPosition = EditorGUILayout.BeginScrollView(codeGenerator.scrollPosition, GUILayout.Height(200));
+                codeGenerator.scrollPosition =
+                    EditorGUILayout.BeginScrollView(codeGenerator.scrollPosition, GUILayout.Height(200));
                 foreach (var suggestion in suggestions)
                 {
                     if (GUILayout.Button(suggestion))
@@ -147,6 +158,7 @@ public class CodeGeneratorUIRenderer
                         AddSuggestionToSelectedClasses(codeGenerator, suggestion);
                     }
                 }
+
                 EditorGUILayout.EndScrollView();
             }
         }
@@ -155,7 +167,7 @@ public class CodeGeneratorUIRenderer
     private List<string> FilterClassNameSuggestions(CodeGenerator codeGenerator)
     {
         return codeGenerator.classToPath
-            .Where(kv => 
+            .Where(kv =>
                 kv.Key.StartsWith(codeGenerator.classNameInput, StringComparison.CurrentCultureIgnoreCase) &&
                 !codeGenerator._ignoredFolders.Any(ignoredFolder => kv.Value.Contains(ignoredFolder)))
             .Select(kv => kv.Key)
@@ -168,6 +180,7 @@ public class CodeGeneratorUIRenderer
         {
             codeGenerator.selectedClassNames.Add(suggestion);
         }
+
         codeGenerator.classNameInput = "";
         GUI.FocusControl(null);
     }
@@ -179,17 +192,20 @@ public class CodeGeneratorUIRenderer
         {
             codeGenerator.generatedPrompt = "";
         }
+
         GUI.backgroundColor = codeGenerator.buttonColor;
         if (GUILayout.Button("Generate Prompt"))
         {
             codeGenerator.ExecGeneratePrompt();
         }
+
         if (codeGenerator.isGeneratingCode)
         {
             Rect progressRect = GUILayoutUtility.GetRect(100, 20);
-            EditorGUI.ProgressBar(progressRect, codeGenerator.generationProgress, $"Generating... {codeGenerator.generationProgress * 100:F0}%");
+            EditorGUI.ProgressBar(progressRect, codeGenerator.generationProgress,
+                $"Generating... {codeGenerator.generationProgress * 100:F0}%");
         }
-        
+
         if (isGenerateCodeButtonDisabled && EditorApplication.timeSinceStartup >= generateCodeButtonDisableTime)
         {
             isGenerateCodeButtonDisabled = false;
@@ -203,13 +219,15 @@ public class CodeGeneratorUIRenderer
             isGenerateCodeButtonDisabled = true;
             generateCodeButtonDisableTime = EditorApplication.timeSinceStartup + 3.0;
         }
+
         GUI.enabled = true;
-        
+
         if (GUILayout.Button("Stop"))
         {
             codeGenerator.isGeneratingCode = false;
             EditorApplication.update -= codeGenerator.UpdateProgressBar;
         }
+
         GUI.backgroundColor = Color.white;
         EditorGUILayout.EndHorizontal();
     }
@@ -225,21 +243,30 @@ public class CodeGeneratorUIRenderer
             {
                 isGeneratedPromptVisible = !isGeneratedPromptVisible;
             }
+
             EditorGUILayout.EndHorizontal();
 
             if (isGeneratedPromptVisible)
             {
-                codeGenerator.scrollPosition = GUILayout.BeginScrollView(codeGenerator.scrollPosition, GUILayout.Height(Screen.height * 0.4f));
-                codeGenerator.generatedPrompt = EditorGUILayout.TextArea(codeGenerator.generatedPrompt, GUILayout.Height(20 * EditorGUIUtility.singleLineHeight));
+                codeGenerator.scrollPosition = GUILayout.BeginScrollView(codeGenerator.scrollPosition,
+                    GUILayout.Height(Screen.height * 0.4f));
+                codeGenerator.generatedPrompt = EditorGUILayout.TextArea(codeGenerator.generatedPrompt,
+                    GUILayout.Height(20 * EditorGUIUtility.singleLineHeight));
                 GUILayout.EndScrollView();
             }
         }
     }
-    
+
     public void DrawAgentSettingsUI(CodeGenerator codeGenerator)
     {
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("Agent Model Settings", EditorStyles.boldLabel);
+
+        // Create memory file selection UI if it doesn't exist
+        if (codeGenerator.memoryFileSelectionUI == null)
+        {
+            codeGenerator.memoryFileSelectionUI = new MemoryFileSelectionUI();
+        }
 
         foreach (var agentEntry in codeGenerator.agentModelSettings)
         {
@@ -249,34 +276,48 @@ public class CodeGeneratorUIRenderer
             // API Provider Dropdown
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("API Provider", GUILayout.Width(100));
-            agentEntry.Value.ApiProvider = (AbstractAgentHandler.ApiProviders)EditorGUILayout.EnumPopup(agentEntry.Value.ApiProvider);
+            agentEntry.Value.ApiProvider =
+                (AbstractAgentHandler.ApiProviders)EditorGUILayout.EnumPopup(agentEntry.Value.ApiProvider);
             EditorGUILayout.EndHorizontal();
 
             // Model selection based on API Provider
             switch (agentEntry.Value.ApiProvider)
             {
                 case AbstractAgentHandler.ApiProviders.OpenAI:
-                    DrawModelSelection("OpenAI Model", ref agentEntry.Value.ModelName, 
-                        new string[] {
+                    DrawModelSelection("OpenAI Model", ref agentEntry.Value.ModelName,
+                        new string[]
+                        {
                             Sanat.ApiOpenAI.Model.GPT4o1mini.Name,
                             Sanat.ApiOpenAI.Model.GPT4o.Name,
                             Sanat.ApiOpenAI.Model.GPT4_Turbo.Name
                         });
                     break;
                 case AbstractAgentHandler.ApiProviders.Anthropic:
-                    DrawModelSelection("Anthropic Model", ref agentEntry.Value.ModelName, 
-                        new string[] {
+                    DrawModelSelection("Anthropic Model", ref agentEntry.Value.ModelName,
+                        new string[]
+                        {
                             Sanat.ApiAnthropic.Model.Claude35.Name,
-                            Sanat.ApiAnthropic.Model.Haiku35Latest.Name
+                            Sanat.ApiAnthropic.Model.Haiku35Latest.Name,
+                            Sanat.ApiAnthropic.Model.Claude37.Name
                         });
                     break;
                 case AbstractAgentHandler.ApiProviders.Gemini:
-                    DrawModelSelection("Gemini Model", ref agentEntry.Value.ModelName, 
-                        new string[] {
+                    DrawModelSelection("Gemini Model", ref agentEntry.Value.ModelName,
+                        new string[]
+                        {
                             Sanat.ApiGemini.Model.Pro.Name,
-                            Sanat.ApiGemini.Model.Flash.Name
+                            Sanat.ApiGemini.Model.Flash.Name,
+                            Sanat.ApiGemini.Model.Flash2.Name
                         });
                     break;
+            }
+
+            // Add memory file selection for AgentCodeHighLevelArchitector
+            if (agentEntry.Key == "AgentCodeHighLevelArchitector")
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Memory Files", EditorStyles.boldLabel);
+                codeGenerator.memoryFileSelectionUI.DrawMemoryFileSelection(agentEntry.Value);
             }
 
             EditorGUILayout.EndVertical();
@@ -295,6 +336,7 @@ public class CodeGeneratorUIRenderer
         {
             selectedModel = models[selectedIndex];
         }
+
         EditorGUILayout.EndHorizontal();
     }
 }

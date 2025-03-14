@@ -49,6 +49,8 @@ namespace Sanat.ApiAnthropic
                     return "claude-3-5-sonnet-20240620";
                 case "claude-3-5-sonnet-20240620":
                     return "claude-3-5-haiku-20241022";
+                case "claude-3-5-haiku-20240620":
+                    return "claude-3-5-sonnet-20241022";
                 default:
                     return "";
             }

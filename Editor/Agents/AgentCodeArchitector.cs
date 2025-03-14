@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Sanat.ApiAnthropic;
 using Sanat.ApiGemini;
 using Sanat.ApiOpenAI;
 using UnityEngine;
@@ -59,7 +60,7 @@ namespace Sanat.CodeGenerator.Agents
             _functionDefinitions = new AgentFunctionDefinitions();
             SelectedApiProvider = ApiProviders.Gemini;
             SelectedApiProvider = ApiProviders.Anthropic;
-            _modelName = ApiAnthropic.Model.Haiku35Latest.Name;
+            _modelName = ApiAnthropic.Model.Claude37.Name;
         }
 
         public void ChangeTask(string task) => _task = task;
@@ -67,12 +68,13 @@ namespace Sanat.CodeGenerator.Agents
         public async Task SplitTaskToSingleFiles()
         {
             await Task.Delay(100);
-            SelectedApiProvider = ApiProviders.OpenAI;
-            _modelName = ApiOpenAI.Model.GPT4omini.Name;
+            SelectedApiProvider = ApiProviders.Anthropic;
+            _modelName = ApiAnthropic.Model.Claude35.Name;
             Debug.Log($"{DebugName} asking [{SelectedApiProvider}][{_modelName}]: {_task}");
             var fileTasks = new List<FileTasks>();
             BotParameters botParameters = new BotParameters(_task, SelectedApiProvider, Temperature, null, _modelName, true);
             string systemPrompt = PrepareSystemPrompt(_systemInstructionSplitTaskToSingleFiles);
+            SavePromptToFile(systemPrompt, "AgentCodeArchitector_SplitTaskToSingleFiles");
             switch (botParameters.apiProvider)
             {
                 case ApiProviders.OpenAI:
@@ -82,12 +84,12 @@ namespace Sanat.CodeGenerator.Agents
                     ToolSplitTaskToSingleFilesGemini(botParameters, systemPrompt);
                     break;
                 case ApiProviders.Anthropic:
-                    //ToolSplitTaskToSingleFilesAntrophic(botParameters, systemPrompt);
+                    ToolSplitTaskToSingleFilesAntrophic(botParameters, systemPrompt);
                     break;
             }
             AskBot(botParameters);
         }
-        
+
         private void ToolSplitTaskToSingleFilesOpenAI(BotParameters botParameters, string systemPrompt)
         {
             var openaiTools = new ApiOpenAI.Tool[] { new("function", _functionDefinitions.GetFunctionData_OpenaiSplitTaskToSingleFiles()) }; // Use the new class
@@ -150,6 +152,84 @@ namespace Sanat.CodeGenerator.Agents
                 }
             };
         }
+        
+        private void ToolSplitTaskToSingleFilesAntrophic(BotParameters botParameters, string systemPrompt)
+        {
+            var antrophicTools = new[] { _functionDefinitions.GetFunctionData_AntrophicSplitTaskToSingleFiles() };
+            Sanat.ApiAnthropic.Model model = ApiAnthropic.Model.GetModelByName(_modelName);
+            
+            List<Antrophic.ChatMessage> messages = new List<Antrophic.ChatMessage>
+            {
+                new("assistant", systemPrompt),
+                new("user", _task)
+            };
+            
+            botParameters.antrophicRequest = new Antrophic.ChatRequest(_modelName, .2f, messages, antrophicTools, model.MaxOutputTokens);
+            botParameters.antrophicRequest.tool_choice = new Antrophic.ToolChoice { type = "any" };
+            
+            botParameters.onAntrophicChatResponseComplete += (response) =>
+            {
+                Debug.Log($"{DebugName} Working on SplitTaskToSingleFiles Result...");
+                if (response.type == "error")
+                {
+                    Debug.LogError($"{DebugName} error[{response.error.type}]; message: {response.error.message}");
+                    OnJobFailed?.Invoke(response.error.message);
+                    return;
+                }
+                
+                if (response.stop_reason == "tool_use")
+                {
+                    List<FileTasks> fileTasks = new List<FileTasks>();
+                    string logFileNames = $"{Name}: ";
+                    
+                    foreach (var responseContent in response.content)
+                    {
+                        if (responseContent.type == "tool_use" && 
+                            responseContent.name == AgentFunctionDefinitions.TOOL_NAME_SPLIT_TASK_TO_SINGLE_FILES)
+                        {
+                            FileTasks fileTask = new FileTasks();
+                            foreach (var keyValuePair in responseContent.input)
+                            {
+                                switch (keyValuePair.Key)
+                                {
+                                    case "FilePath":
+                                        fileTask.FilePath = keyValuePair.Value;
+                                        break;
+                                    case "TaskId":
+                                        if (int.TryParse(keyValuePair.Value, out int taskId))
+                                        {
+                                            fileTask.TaskId = taskId;
+                                        }
+                                        break;
+                                }
+                            }
+                            
+                            SaveResultToFile($"{fileTask.FilePath}:{fileTask.TaskId}");
+                            Debug.Log($"{DebugName} tool_use: {responseContent.name}({fileTask.FilePath}, {fileTask.TaskId})");
+                            fileTasks.Add(fileTask);
+                            logFileNames += $"{fileTask.FilePath}, ";
+                        }
+                    }
+                    
+                    if (fileTasks.Count > 0)
+                    {
+                        logFileNames = logFileNames.Remove(logFileNames.Length - 2);
+                        Debug.Log(logFileNames);
+                        ReportFunctionResult_SplitTaskToSingleFiles(fileTasks);
+                    }
+                    else
+                    {
+                        Debug.LogError($"{DebugName} No file tasks received");
+                        OnJobFailed?.Invoke("No file tasks received");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"{DebugName} Unexpected response stop reason: {response.stop_reason}");
+                    OnJobFailed?.Invoke($"Unexpected response stop reason: {response.stop_reason}");
+                }
+            };
+        }
 
         private async Task ReportFunctionResult_SplitTaskToSingleFiles(List<FileTasks> fileTasks)
         {
@@ -161,7 +241,7 @@ namespace Sanat.CodeGenerator.Agents
                 // SelectedApiProvider = ApiProviders.OpenAI;
                 // _modelName = ApiOpenAI.Model.GPT4omini.Name;
                 SelectedApiProvider = ApiProviders.Gemini;
-                _modelName = Model.Flash2.Name;
+                _modelName = Model.ProExp.Name;
                 for (int i = 0; i < fileTasks.Count; i++)
                 {
                     var fileTask = fileTasks[i];
@@ -181,7 +261,7 @@ namespace Sanat.CodeGenerator.Agents
                     Debug.Log($"{DebugName} Task #{i}: {task}");
                     ChangeTask(task);
                     string systemPrompt = $"{PromptFromMdFile} {currentCode}";
-                    WriteCode(null, systemPrompt, task);
+                    WriteCode(null, i, systemPrompt, task);
                     await Task.Delay(100);
                 }
             }
@@ -192,37 +272,37 @@ namespace Sanat.CodeGenerator.Agents
             }
         }
 
-
         public override void Handle(string input)
         {
             SplitTaskToSingleFiles();
         }
-        private async Task WriteCode(List<Antrophic.ChatMessage> additionalMessages = null, string systemPrompt = "", string task = "")
+        
+        private async Task WriteCode(List<Antrophic.ChatMessage> additionalMessages, int taskId, string systemPrompt = "", string task = "")
         {
             await Task.Delay(100);
             if (task == "") task = _task;
             if (systemPrompt == "") systemPrompt = PrepareSystemPrompt();
-            Debug.Log($"{DebugName}[WriteCode] asking [{SelectedApiProvider}][{_modelName}]: {task}");
+            Debug.Log($"{DebugName} Task #{taskId} [WriteCode] asking [{SelectedApiProvider}][{_modelName}]: {task}");
             SaveResultToFile($"{systemPrompt} \n# TASK: {task}");
             List<FileContent> fileContents = new List<FileContent>();
             BotParameters botParameters = new BotParameters(task, SelectedApiProvider, Temperature, null, _modelName, true);
             switch (botParameters.apiProvider)
             {
                 case ApiProviders.OpenAI:
-                    ToolHandlingOpenAI(botParameters, systemPrompt, DebugName);
+                    ToolHandlingOpenAI(botParameters, systemPrompt, DebugName, taskId);
                     break;
                 case ApiProviders.Gemini:
-                    ToolHandlingGemini(botParameters, systemPrompt, DebugName);
+                    ToolHandlingGemini(botParameters, systemPrompt, DebugName, taskId);
                     break;
                 case ApiProviders.Anthropic:
-                    ToolHandlingAntrophic(additionalMessages, systemPrompt, DebugName, fileContents);
+                    ToolHandlingAntrophic(additionalMessages, systemPrompt, DebugName, fileContents, taskId);
                     break;
             }
 
             AskBot(botParameters);
         }
         #region Tools OpenAI
-        private void ToolHandlingOpenAI(BotParameters botParameters, string systemPrompt, string agentName)
+        private void ToolHandlingOpenAI(BotParameters botParameters, string systemPrompt, string agentName, int taskId)
         {
             var openaiTools = new ApiOpenAI.Tool[] { new("function", _functionDefinitions.GetFunctionData_OpenaiSReplaceScriptFile()) }; // Use the new class
             botParameters.isToolUse = true;
@@ -249,7 +329,7 @@ namespace Sanat.CodeGenerator.Agents
                         }
                     }
                     Debug.Log(logFileNames);
-                    ReportFunctionResult_ReplaceScriptFiles(fileContents, agentName);
+                    ReportFunctionResult_ReplaceScriptFiles(fileContents, agentName, taskId);
                 }
             };
         }
@@ -257,7 +337,7 @@ namespace Sanat.CodeGenerator.Agents
 
         #region Tools Handling Antrophic
         private BotParameters ToolHandlingAntrophic(List<Antrophic.ChatMessage> additionalMessages, string systemPrompt, string agentName,
-            List<FileContent> fileContents)
+            List<FileContent> fileContents, int taskId)
         {
             BotParameters botParameters;
             Antrophic.ToolFunction[] tools = new[] { _functionDefinitions.GetFunctionData_AntrophicReplaceScriptFile() }; // Use the new class
@@ -307,16 +387,16 @@ namespace Sanat.CodeGenerator.Agents
                             }
                         }
                     }
-                    ReportFunctionResult_ReplaceScriptFiles(fileContents, agentName);
+                    ReportFunctionResult_ReplaceScriptFiles(fileContents, agentName, taskId);
                 }
             };
             return botParameters;
         }
         #endregion
         #region Tools Handling Gemini
-        private void ToolHandlingGemini(BotParameters botParameters, string systemPrompt, string agentName)
+        private void ToolHandlingGemini(BotParameters botParameters, string systemPrompt, string agentName, int taskId)
         {
-            _modelName = ApiGemini.Model.Flash2.Name;
+            _modelName = ApiGemini.Model.ProExp.Name;
             var geminiTools = new List<ApiGemini.Tool> { new() { function_declarations = new List<ApiGemini.FunctionDeclaration>() { _functionDefinitions.GetFunctionData_GeminiReplaceScriptFile() } } };
             botParameters.geminiRequest = new GeminiChatRequest(_task, Temperature)
             {
@@ -324,6 +404,7 @@ namespace Sanat.CodeGenerator.Agents
                 tool_config = new ToolConfig { function_calling_config = new FunctionCallingConfig { mode = "any", AllowedFunctionNames = new List<string> { AgentFunctionDefinitions.TOOL_NAME_REPLACE_SCRIPT_FILE } } }
             };
             botParameters.geminiRequest.system_instruction = new Content { parts = new List<Part> { new Part { text = systemPrompt } } };
+            
             botParameters.onComplete += (result) =>
             {
                 if (string.IsNullOrEmpty(result)) return;
@@ -341,16 +422,16 @@ namespace Sanat.CodeGenerator.Agents
                             files.Add(fileContent);
                         }
                     }
-                    if (files.Count > 0) ReportFunctionResult_ReplaceScriptFiles(files, agentName);
+                    if (files.Count > 0) ReportFunctionResult_ReplaceScriptFiles(files, agentName, taskId);
                 }
             };
         }
         #endregion
-        private void ReportFunctionResult_ReplaceScriptFiles(List<FileContent> fileContents, string agentName)
+        private void ReportFunctionResult_ReplaceScriptFiles(List<FileContent> fileContents, string agentName, int taskId)
         {
             if (fileContents.Count > 0)
             {
-                Debug.Log($"{agentName} fileContents: {fileContents.Count}");
+                Debug.Log($"{agentName} Task #{taskId} path: {fileContents[0].FilePath}\n fileContents: {fileContents[0].Content}");
                 OnFileContentProvided?.Invoke(fileContents);
             }
             else
@@ -380,7 +461,7 @@ namespace Sanat.CodeGenerator.Agents
                 new ("assistant", possibleSolution),
                 new ("user", invalidationComment)
             };
-            WriteCode(additionalMessages);
+            WriteCode(additionalMessages, 0);
         }
     }
 }

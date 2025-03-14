@@ -11,7 +11,7 @@ using Newtonsoft.Json;
 using Sanat.ApiGemini;
 using Sanat.ApiOpenAI;
 using Sanat.CodeGenerator.Agents;
-using Sanat.CodeGenerator.Bookmarks;
+using Sanat.CodeGenerator.Editor.Bookmarks;
 using Sanat.CodeGenerator.CodebaseRag;
 using Sanat.CodeGenerator.Editor;
 using Sanat.CodeGenerator.Extensions;
@@ -25,6 +25,7 @@ namespace Sanat.CodeGenerator
         private CodeGeneratorUIRenderer _uiRenderer;
         private CodeGeneratorPreparationHelper _preparationHelper;
         private RagProcessor _ragProcessor;
+        public MemoryFileSelectionUI memoryFileSelectionUI;
         public bool IsFirstOnEnableCall => _isFirstOnEnableCall;
         private static bool _isFirstOnEnableCall = true;
         
@@ -71,7 +72,6 @@ namespace Sanat.CodeGenerator
 
         // Constants
         private const string PLUGIN_NAME = "Code Generator ";
-        private const string PROMPTS_SAVE_FOLDER = "Sanat/CodeGenerator/Prompts";
         public const string PREFS_GEMINI_PROJECT_NAME = "GeminiProjectName";
         public const string PREFS_KEY_TASK = "Task";
         private const string PREFS_KEY_LAST_UPDATE_TIME = "LastUpdateTime";
@@ -90,7 +90,7 @@ namespace Sanat.CodeGenerator
             public bool isEnabled;
         }
 
-        [MenuItem("Tools/Sanat/CodeGenerator")]
+        [MenuItem("Tools/Sanat/CodeGenerator/CodeGenerator window")]
         public static void ShowWindow() => GetWindow<CodeGenerator>("Code Generator");
 
         private async void OnEnable()
@@ -153,8 +153,8 @@ namespace Sanat.CodeGenerator
         {
             projectCode = _preparationHelper.PrepareProjectCode(selectedClassNames, classToPath, _ignoredFolders);
             SaveTaskToPrefs();
-            GeneratePrompt(3);
-            SavePromptToFile();
+            var prompt = GeneratePrompt(3);
+            AbstractAgentHandler.SavePromptToFile(prompt, "AgentCodeHighLevelArchitector");
             CopyPromptToClipboard();
             StartButtonAnimation();
         }
@@ -177,8 +177,8 @@ namespace Sanat.CodeGenerator
             EditorApplication.update += UpdateProgressBar;
             SaveTaskToPrefs();
             string[] projectCodePathes = projectCode.Keys.ToArray();
-            GeneratePrompt();
-            SavePromptToFile();
+            var prompt = GeneratePrompt();
+            AbstractAgentHandler.SavePromptToFile(prompt, "AgentCodeHighLevelArchitector");
             CopyPromptToClipboard();
             StartButtonAnimation();
             var includedCode = _preparationHelper.GenerateIncludedCode(projectCode, "");
@@ -200,7 +200,12 @@ namespace Sanat.CodeGenerator
                     projectCodeScope.Add(fileContent);
                 }
             }
-            var agentCodeHighLevelArchitector = new AgentCodeHighLevelArchitector(apiKeys, taskInput, includedCode);
+            List<string> selectedMemoryFiles = null;
+            if (agentModelSettings.TryGetValue("AgentCodeHighLevelArchitector", out var highLevelArchSettings))
+            {
+                selectedMemoryFiles = highLevelArchSettings.SelectedMemoryFiles;
+            }
+            var agentCodeHighLevelArchitector = new AgentCodeHighLevelArchitector(apiKeys, taskInput, includedCode, selectedMemoryFiles);
             var agentCodeArchitector = new AgentCodeArchitector(apiKeys, taskInput, projectCodeScope);
             var architectorSettings = agentModelSettings["AgentCodeArchitector"];
             agentCodeArchitector.ChangeLLM(architectorSettings.ApiProvider, architectorSettings.ModelName);
@@ -527,19 +532,6 @@ namespace Sanat.CodeGenerator
             Debug.Log($"{PLUGIN_NAME}Class to path dictionary populated with {classToPath.Count} entries.");
         }
 
-        private void SavePromptToFile()
-        {
-            string directoryPath = Path.Combine(Application.dataPath, PROMPTS_SAVE_FOLDER);
-            if (!Directory.Exists(directoryPath))
-            {
-                Directory.CreateDirectory(directoryPath);
-            }
-            string fileName = $"prompt_{DateTime.Now:yyyy-MM-ddTHH-mm-ss}.txt";
-            string filePath = Path.Combine(directoryPath, fileName);
-            File.WriteAllText(filePath, generatedPrompt);
-            Debug.Log($"{PLUGIN_NAME}Prompt of Length = {generatedPrompt.Length} chars   saved to {filePath}");
-        }
-
         private void CopyPromptToClipboard()
         {
             TextEditor te = new TextEditor();
@@ -567,18 +559,12 @@ namespace Sanat.CodeGenerator
             }
         }
         
-        public void LoadBookmarkData(CodeGeneratorBookmarks.Bookmark bookmark)
+        public void LoadBookmarkData(BookmarkData bookmark)
         {
-            var bookmarks = bookmarkManager.LoadBookmarksFromPrefs();
-            foreach (var bkm in bookmarks)
+            if (bookmark != null)
             {
-                if (bkm.Name == bookmark.Name)
-                {
-                    selectedClassNames = bkm.SelectedClassNames;
-                    taskInput = bkm.Task;
-                    break;
-                }
-                
+                selectedClassNames = new List<string>(bookmark.selectedClassNames);
+                taskInput = bookmark.task;
             }
         }
 
@@ -592,7 +578,7 @@ namespace Sanat.CodeGenerator
             string assetsParentPath = Directory.GetParent(Application.dataPath).FullName;
             string gitignorePath = Path.Combine(assetsParentPath, ".gitignore");
             string ignoreConfPath = Path.Combine(assetsParentPath, "ignore.conf");
-            string folderPathToAdd = Environment.NewLine + "/Assets/" + PROMPTS_SAVE_FOLDER + Environment.NewLine;
+            string folderPathToAdd = Environment.NewLine + "/Assets/" + AbstractAgentHandler.PROMPTS_SAVE_FOLDER + Environment.NewLine;
             string resultsPathToAdd = Environment.NewLine + "/Assets/" + AbstractAgentHandler.RESULTS_SAVE_FOLDER + Environment.NewLine;
             string backupsPathToAdd = Environment.NewLine + "/" + BackupManager.BACKUP_ROOT + "/" + BackupManager.BACKUP_FOLDER_NAME + Environment.NewLine;
             if (File.Exists(gitignorePath))

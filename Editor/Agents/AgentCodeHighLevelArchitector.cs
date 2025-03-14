@@ -50,7 +50,7 @@ namespace Sanat.CodeGenerator.Agents
             return ApiGemini.Model.Pro.Name;
         }
         
-        public AgentCodeHighLevelArchitector(ApiKeys apiKeys, string task, string includedCode)
+        public AgentCodeHighLevelArchitector(ApiKeys apiKeys, string task, string includedCode, List<string> selectedMemoryFiles)
         {
             Name = "AgentCodeHighLevelArchitector";
             DebugName = $"<color=#FFC0CB>Agent Unity3D High Level Architect</color>";
@@ -58,13 +58,35 @@ namespace Sanat.CodeGenerator.Agents
             Temperature = 1f;
             StoreKeys(apiKeys);
             _promptLocation = Application.dataPath + $"{PROMPTS_FOLDER_PATH}{PromptFilename()}";
-            _task = $"{task}";
             PromptFromMdFile = LoadPrompt(_promptLocation);
+            _selectedMemoryFiles = selectedMemoryFiles ?? new List<string>();
+            _task = $"{task}";
             _systemInstructions = $"{PromptFromMdFile} # PROJECT CODE: " + includedCode;
+            var selectedMemory = LoadSelectedMemoryIfRequired();
+            _systemInstructions += selectedMemory;
             SelectedApiProvider = ApiProviders.Gemini;
             _modelName = ApiGemini.Model.Flash2.Name;
             SelectedApiProvider = ApiProviders.Anthropic;
             _modelName = ApiAnthropic.Model.Claude37.Name;
+        }
+
+        private string LoadSelectedMemoryIfRequired()
+        {
+            string result = "";
+            if (_selectedMemoryFiles.Count > 0)
+            {
+                result = "\n# MEMORY: ";
+                string promptLocation = "";
+                string prompt = "";
+                foreach (var fileName in _selectedMemoryFiles)
+                {
+                    promptLocation = Application.dataPath + $"{MEMORY_FOLDER_PATH}{fileName}.md";
+                    prompt = LoadPrompt(promptLocation);
+                    result += prompt + "; ";
+                }
+            }
+
+            return result;
         }
 
         public override void Handle(string input)

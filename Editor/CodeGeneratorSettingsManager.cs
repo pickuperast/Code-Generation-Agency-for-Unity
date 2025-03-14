@@ -1,9 +1,9 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using Sanat.CodeGenerator.Agents;
-using Sanat.CodeGenerator.Bookmarks;
+using Sanat.CodeGenerator.Editor.Bookmarks;
 using Sanat.CodeGenerator.CodebaseRag;
 using UnityEngine;
 using UnityEditor;
@@ -26,7 +26,6 @@ namespace Sanat.CodeGenerator.Editor
             EditorPrefs.SetInt("IsRag", codeGenerator.isRag ? 1 : 0);
             EditorPrefs.SetString("IgnoredFolders", string.Join(",", codeGenerator._ignoredFolders));
             EditorPrefs.SetString(CodeGenerator.INCLUDED_FOLDERS_PREFS_KEY, JsonUtility.ToJson(codeGenerator.includedFolders));
-            codeGenerator.bookmarkManager.SaveBookmarksToPrefs();
             codeGenerator.bookmarkManager.OnBookmarkLoaded -= codeGenerator.LoadBookmarkData;
             SaveAgentModelSettings(codeGenerator);
         }
@@ -62,13 +61,14 @@ namespace Sanat.CodeGenerator.Editor
             Debug.Log("First launch checked");
             codeGenerator.bookmarkManager = new CodeGeneratorBookmarks();
             codeGenerator.bookmarkManager.OnBookmarkLoaded += codeGenerator.LoadBookmarkData;
-            codeGenerator.bookmarkManager.LoadBookmarksFromPrefs();
+            codeGenerator.bookmarkManager.InitializeReorderableList();
             Debug.Log("Bookmarks loaded");
             var bookmarks = codeGenerator.bookmarkManager.GetBookmarks();
             codeGenerator.bookmarkManager.InitializeReorderableList();
             Debug.Log("Reorderable list initialized");
             codeGenerator.ragProcessor = new RagProcessor();
             InitializeAgentModelSettings(codeGenerator);
+            LoadAgentModelSettings(codeGenerator);
             Debug.Log("Agent model settings initialized");
             codeGenerator.IsSettingsLoaded = true;
         }
@@ -77,27 +77,59 @@ namespace Sanat.CodeGenerator.Editor
         {
             codeGenerator.agentModelSettings = new Dictionary<string, AgentModelSettings>
             {
-                { "AgentCodeArchitector", new AgentModelSettings 
+                { "AgentCodeHighLevelArchitector", new AgentModelSettings
+                {
+                    AgentName = "High Level Architector",
+                    ApiProvider = AbstractAgentHandler.ApiProviders.Anthropic,
+                    ModelName = ApiAnthropic.Model.Claude37.Name,
+                    SelectedMemoryFiles = new List<string>()
+                }},
+                { "AgentCodeArchitector", new AgentModelSettings
                 {
                     AgentName = "Code Architector",
                     ApiProvider = AbstractAgentHandler.ApiProviders.Gemini,
                     ModelName = Sanat.ApiGemini.Model.Flash2.Name
-                    // ApiProvider = AbstractAgentHandler.ApiProviders.Anthropic,
-                    // ModelName = ApiAnthropic.Model.Claude35Latest.Name
                 }},
-                { "AgentCodeMerger", new AgentModelSettings 
+                { "AgentCodeMerger", new AgentModelSettings
                 {
                     AgentName = "Code Merger",
                     ApiProvider = AbstractAgentHandler.ApiProviders.Gemini,
                     ModelName = Sanat.ApiGemini.Model.Pro.Name
                 }},
-                { "AgentCodeValidator", new AgentModelSettings 
+                { "AgentCodeValidator", new AgentModelSettings
                 {
                     AgentName = "Code Validator",
                     ApiProvider = AbstractAgentHandler.ApiProviders.Anthropic,
                     ModelName = ApiAnthropic.Model.Haiku35Latest.Name
                 }}
             };
+        }
+
+        public void LoadAgentModelSettings(CodeGenerator codeGenerator)
+        {
+            string settingsJson = EditorPrefs.GetString("AgentModelSettings", "");
+            if (!string.IsNullOrEmpty(settingsJson))
+            {
+                try
+                {
+                    SerializableAgentModelSettingsList loadedSettings = JsonUtility.FromJson<SerializableAgentModelSettingsList>(settingsJson);
+                    if (loadedSettings != null && loadedSettings.settings != null)
+                    {
+                        foreach (var setting in loadedSettings.settings)
+                        {
+                            string agentKey = GetAgentKey(setting.AgentName);
+                            if (codeGenerator.agentModelSettings.ContainsKey(agentKey))
+                            {
+                                codeGenerator.agentModelSettings[agentKey] = setting;
+                            }
+                        }
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"Error loading agent model settings: {e.Message}");
+                }
+            }
         }
         
         public void SaveAgentModelSettings(CodeGenerator codeGenerator)
@@ -126,6 +158,7 @@ namespace Sanat.CodeGenerator.Editor
         {
             switch (agentName)
             {
+                case "High Level Architector": return "AgentCodeHighLevelArchitector";
                 case "Code Architector": return "AgentCodeArchitector";
                 case "Code Merger": return "AgentCodeMerger";
                 case "Code Validator": return "AgentCodeValidator";

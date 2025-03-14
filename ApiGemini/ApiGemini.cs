@@ -56,10 +56,19 @@ namespace Sanat.ApiGemini
                 {
                     Debug.Log($"webRequest.error: {webRequest.error} \nwebRequest.downloadHandler.text: {webRequest.downloadHandler.text}");
                     Debug.Log($"{model} Retry #{retryCount + 1} due to: {(text.Contains("MAX_TOKENS") ? "MAX_TOKENS" : "print(default_api")}");
-                    if (webRequest.downloadHandler.text.Contains("RESOURCE_EXHAUSTED"))
+                    
+                    if (retryCount > 10)
                     {
-                        model = "gemini-1.5-flash-latest";
+                        Debug.Log($"{model} Retry #{retryCount + 1} due to: retryCount > 10");
+                        return;
+                    }else if (webRequest.downloadHandler.text.Contains("RESOURCE_EXHAUSTED") || retryCount > 1)
+                    {
+                        model = ApiGemini.Model.FlashExp.Name;
+                    }else if (retryCount > 2)
+                    {
+                        model = ApiGemini.Model.Flash.Name;
                     }
+                    
                     webRequest.Dispose();
                     SendRequestRecursively(apiKey, model, jsonData, chatRequest, callback, retryCount + 1, maxRetries);
                     return;
@@ -72,9 +81,9 @@ namespace Sanat.ApiGemini
                     if (retryCount > 1)
                     {
                         Debug.Log($"Retry #{retryCount + 1} due to: retryCount > 1");
-                        model = "gemini-1.5-flash-latest";
+                        model = ApiGemini.Model.FlashExp.Name;
                     }
-                    SendRequestRecursively(apiKey, model, jsonData, chatRequest, callback, retryCount + 1, maxRetries);
+                    SendRequestRecursively(apiKey, model, jsonData, chatRequest, callback, retryCount++, maxRetries);
                     return;
                 }
 
@@ -95,7 +104,7 @@ namespace Sanat.ApiGemini
         {
             if (string.IsNullOrEmpty(text))
                 return string.Empty;
-
+            var m_Model = Model.GetModelByName(model);
             var responseData = JsonConvert.DeserializeObject<ChatResponse>(text);
             if (responseData?.candidates == null || responseData.candidates.Count == 0)
                 return "No candidates found in response.";
@@ -129,8 +138,12 @@ namespace Sanat.ApiGemini
             {
                 Debug.Log($"{model}: {text}");
             }
-            Debug.Log($"{model} [<color=orange>{elapsedTime:F0}</color> sec] Usage: {CommonForAnyApi.OUTPUT_TOKENS_SYMBOL} {tokensPrompt:F1}K; {CommonForAnyApi.INPUT_TOKENS_SYMBOL} {tokensCompletion:F1}K; total_tokens: {tokensTotal:F1}K");
-
+            
+            float inputCost = (tokensPrompt / 1000000f) * m_Model.InputPricePerMil;
+            float outputCost = (tokensCompletion / 1000000f) * m_Model.OutputPricePerMil;
+            float totalCost = inputCost + outputCost;
+            
+            Debug.Log($"{model} [<color=orange>{elapsedTime:F0}</color> sec] Usage(<color=green>{totalCost:F3}</color>$): {CommonForAnyApi.OUTPUT_TOKENS_SYMBOL} {tokensPrompt:F1}K; {CommonForAnyApi.INPUT_TOKENS_SYMBOL} {tokensCompletion:F1}K; total_tokens: {tokensTotal:F1}K");
             return answer;
         }
 

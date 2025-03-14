@@ -8,7 +8,8 @@ Call tools to split technical specification into several tasks with file pathes 
 I will provide you Technical Specification, this specification should be splitted into several tasks by filepathes for each file in Technical Specification.
 TaskId should be integer number 0 for Modify or integer number 1 for Create.
 
-## EXAMPLE:
+# EXAMPLES:
+## EXAMPLE 1:
 Here's a step-by-step technical specification for achieving this:
 
 1.  **Modify `File1` Class:**
@@ -52,10 +53,77 @@ public class File3
     private bool condition2;
 }
 ```
-## ANSWER:
+
+### ANSWER:
 SplitTaskToSingleFiles(`Path/To/File1.cs`, 0)
 SplitTaskToSingleFiles(`Path/To/File2.cs`, 0)
 SplitTaskToSingleFiles(`Path/To/File3.cs`, 1)
+
+## EXAMPLE 2:
+```markdown
+## Overview
+Text describing overview of the task
+
+## High-Level Architecture
+1. Create a new class `ClassNameA`
+2. Create a new class `ClassNameB`
+3. Edit class `ClassNameC`
+4. Edit class `ClassNameD`
+
+## Implementation Details
+
+### 1. ClassNameA
+``csharp
+[Serializable]
+public class ClassNameA
+{
+    public string Name;
+}
+``
+### 2. ClassNameB
+``csharp
+
+    public class ClassNameB : EditorWindow
+    {
+        public Vector2 scrollPosition;
+        public Vector2 taskScrollPosition;
+    }
+``
+### 3. ClassNameC
+``csharp
+
+    public class ClassNameC : MonoBehaviour
+    {
+        public int someValue;
+        public float someFloatValue;
+    }
+``
+### 4. ClassNameD
+``csharp
+
+    public class ClassNameD : NetworkBehaviour
+    {
+        public byte someByteValue;
+        public int someIntValue;
+    }
+``
+
+## Files to Create/Modify
+
+Created:
+- Assets\{ProjectName}\Scripts\ClassNameA.cs
+- Assets\{ProjectName}\Scripts\ClassNameB.cs
+Modified:
+- Assets\{ProjectName}\Scripts\ClassNameC.cs
+- Assets\{ProjectName}\Scripts\ClassNameD.cs
+
+```
+
+### ANSWER:
+SplitTaskToSingleFiles(`Assets\{ProjectName}\Scripts\ClassNameA.cs`, 0)
+SplitTaskToSingleFiles(`Assets\{ProjectName}\Scripts\ClassNameB.cs`, 0)
+SplitTaskToSingleFiles(`Assets\{ProjectName}\Scripts\ClassNameC.cs`, 1)
+SplitTaskToSingleFiles(`Assets\{ProjectName}\Scripts\ClassNameD.cs`, 1)
 
 # INSTRUCTIONS:
 1.  Split the technical specification into several tasks.
