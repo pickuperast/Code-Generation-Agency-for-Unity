@@ -39,8 +39,6 @@ namespace Sanat.ApiGemini
                     return Flash;
                 case FlashModelName:
                     return Flash;
-                case FlashModelName:
-                    return Flash;
                 case TwentyFiveProExpToModelName:
                     return ProExp25;
                 default:
