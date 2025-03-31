@@ -129,7 +129,7 @@ public class CodeGeneratorUIRenderer
                 return;
             }
 
-            if (GUILayout.Button(selectedClasses[i], GUILayout.ExpandWidth(true)))
+            if (GUILayout.Button(selectedClasses[i], GUILayout.Width(250)))
             {
                 if (codeGenerator.classToPath.TryGetValue(selectedClasses[i], out string filePath))
                 {
