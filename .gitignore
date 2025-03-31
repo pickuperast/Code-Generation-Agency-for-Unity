@@ -76,3 +76,5 @@ crashlytics-build.properties
 /Bookmarks/*
 /Editor/Agents/Prompts/Memory/*
 /ScriptBackups/*
+.env
+.aider*
