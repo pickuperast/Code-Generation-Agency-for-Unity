@@ -17,6 +17,7 @@ namespace Sanat.ApiGemini
         const string FlashLite2ModelName = "gemini-2.0-flash-lite";
         const string FlashExp2ModelName = "gemini-2.0-flash-exp";
         const string ProExpToModelName = "gemini-2.0-pro-exp-02-05";
+        const string TwentyFiveProExpToModelName = "gemini-2.5-pro-exp-03-25";
 
         public Model(string name, ModelType modelType, int maxInputTokens, float inputPricePerMil, float outputPricePerMil, int maxOutputTokens = 4095)
         {
@@ -38,6 +39,10 @@ namespace Sanat.ApiGemini
                     return Flash;
                 case FlashModelName:
                     return Flash;
+                case FlashModelName:
+                    return Flash;
+                case TwentyFiveProExpToModelName:
+                    return ProExp25;
                 default:
                     return Flash;
             }
@@ -47,6 +52,8 @@ namespace Sanat.ApiGemini
         {
             switch (modelName)
             {
+                case "gemini-2.5-pro-exp-03-25":
+                    return "gemini-2.0-pro-exp-02-05";
                 case "gemini-2.0-pro-exp-02-05":
                     return "gemini-2.0-flash-lite";
                 case "gemini-2.0-flash-lite":
@@ -70,6 +77,7 @@ namespace Sanat.ApiGemini
         public static Model Flash2 { get; } = new Model(Flash2ModelName, ModelType.Chat, 1048576, 0f, 0f, 8192);
 
         public static Model ProExp { get; } = new Model(ProExpToModelName, ModelType.Chat, 1048576, 0f, 0f, 8192);
+        public static Model ProExp25 { get; } = new Model(TwentyFiveProExpToModelName, ModelType.Chat, 1048576, 0f, 0f, 8192);
 
     }
 }
