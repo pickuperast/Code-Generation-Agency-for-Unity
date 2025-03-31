@@ -86,6 +86,17 @@ public class CodeGeneratorUIRenderer
             RenderSelectedClassesColumn(codeGenerator, 1);
             EditorGUILayout.EndVertical();
             EditorGUILayout.EndHorizontal();
+            
+            // Display paths to selected classes
+            string selectedClassPaths = GetSelectedClassPaths(codeGenerator);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Selected Class Paths:", EditorStyles.boldLabel);
+            if (GUILayout.Button("Copy Paths", GUILayout.Width(100)))
+            {
+                CopyPathsToClipboard(selectedClassPaths);
+            }
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.TextField(selectedClassPaths);
         }
 
         EditorGUILayout.Space();
@@ -183,6 +194,40 @@ public class CodeGeneratorUIRenderer
 
         codeGenerator.classNameInput = "";
         GUI.FocusControl(null);
+    }
+    
+    private string GetSelectedClassPaths(CodeGenerator codeGenerator)
+    {
+        List<string> paths = new List<string>();
+        foreach (string className in codeGenerator.selectedClassNames)
+        {
+            if (codeGenerator.classToPath.TryGetValue(className, out string filePath))
+            {
+                // Ensure path starts with "Assets\"
+                if (filePath.StartsWith("Assets\\") || filePath.StartsWith("Assets/"))
+                {
+                    paths.Add(filePath);
+                }
+                else
+                {
+                    // Extract path starting from "Assets\"
+                    int assetsIndex = filePath.IndexOf("Assets");
+                    if (assetsIndex >= 0)
+                    {
+                        paths.Add(filePath.Substring(assetsIndex));
+                    }
+                }
+            }
+        }
+        return string.Join(" ", paths);
+    }
+    
+    private void CopyPathsToClipboard(string paths)
+    {
+        TextEditor te = new TextEditor();
+        te.text = paths;
+        te.SelectAll();
+        te.Copy();
     }
 
     private void RenderGenerationButtons(CodeGenerator codeGenerator)
