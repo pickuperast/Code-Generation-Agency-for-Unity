@@ -18,6 +18,9 @@ Thats why your answer should tell in the end of the answer that which files shou
 
 Instead of IEnumerator you use UniTask with proper error handling and memory leak prevention.
 Using UniTask should be avoided if we can handle logic with simple void.
+if we use UniTaskCompletionSource we should use TrySetResult, TrySetException, TrySetCanceled instead of SetResult, SetException, SetCanceled.
+
+For json serialization and deserialization, use Newtonsoft.Json.
 
 For tasks that can be reduced to a while loop with yield and WaitForSeconds or WaitForSecondsRealtime, consider using InvokeRepeating instead.
 InvokeRepeating is independent of the state of the MonoBehaviour or GameObject. Stopping it requires: Calling CancelInvoke;Destroying the associated MonoBehaviour or GameObject;Disabling them doesn’t stop InvokeRepeating.
