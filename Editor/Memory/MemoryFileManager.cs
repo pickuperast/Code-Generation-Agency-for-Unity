@@ -9,7 +9,7 @@ namespace Sanat.CodeGenerator.Editor.Memory
 {
     public class MemoryFileManager
     {
-        private const string MEMORY_FOLDER_PATH = "/Sanat/CodeGenerator/Editor/Agents/Prompts/Memory/";
+        private const string MEMORY_FOLDER_PATH = "/Sanat/CodeGenerator/Memory/";
         private List<MemoryFile> _availableMemoryFiles = new();
         
         [Serializable]
